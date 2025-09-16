@@ -136,7 +136,7 @@
         <div id="lab-page" class="lab-page hidden">
             <div class="main-content">
                 <div class="contrast-test">
-                    <h2 class="section-header-lab">텍스트-배경 명도대비 실시간 테스트</h2>
+                    <h2 class="section-header-lab">색상 대비 실시간 테스트</h2>
                     <div class="color-inputs">
                         <div class="input-group">
                             <label>Background color</label>
@@ -160,42 +160,41 @@
                             </div>
                         </div>
                     </div>
-                    <div class="contrast-display-wrapper"> <div class="contrast-ratio" id="contrast-ratio">12.36 : 1</div>
-                        <div class="contrast-info-group"> <div class="contrast-status">
-                                <span class="status-badge" id="aa-status">AA</span>
-                                <span class="status-badge" id="aaa-status">AAA</span>
+                    <div class="contrast-display">
+                        <div class="contrast-ratio-wrapper">
+                            <div class="contrast-ratio" id="contrast-ratio">12.36 : 1</div>
+                            <div class="contrast-status">
+                                <span class="status-badge pass" id="aa-status">AA</span>
+                                <span class="status-badge pass" id="aaa-status">AAA</span>
                             </div>
-                            <p class="contrast-info">
-                                WCAG 2.1 기준, 일반 텍스트는 4.5:1(AA), 7:1(AAA) 이상이어야 합니다. <br>
-                                <span id="status-text">기준 통과시 초록색, 기준 미달시 빨간색으로 표시됩니다.</span>
-                            </p>
+                        </div>
+                        <div class="contrast-info-wrapper">
+                            <p class="contrast-info">WCAG 2.1 기준, 일반 텍스트는 4.5:1(AA), 7:1(AAA)이상이어야 합니다. 기준 통과시 초록색, 기준 미달시 빨간색으로 표시됩니다.</p>
                         </div>
                     </div>
                     <div class="text-preview" id="text-preview">
-                        <p class="preview-line preview-line-regular-16">일반 텍스트의 명도 대비는 최소 4.5:1 이상을 권장합니다.</p>
-                        <p class="preview-line preview-line-regular-18">대형 텍스트는 일반 글자 18pt(24px) 이상,</p>
-                        <p class="preview-line preview-line-bold-14">굵은 글자 14pt(18.5px) 이상일 경우 배경과의 명도 대비를 3:1까지 낮출 수 있습니다.</p>
+                        <p class="preview-text-1">일반 텍스트의 명도 대비는 최소 4.5:1 이상을 권장합니다.</p>
+                        <p class="preview-text-2">대형 텍스트는 일반 글자 18pt(24px) 이상</p>
+                        <p class="preview-text-3">굵은 글자 14pt(18.5px) 이상일 경우 배경과의 명도 대비를 3:1까지 낮출 수 있습니다.</p>
                     </div>
                 </div>
                 
                 <div class="bottom-font-units">
                     <h2 class="section-header-lab">플랫폼별 폰트 단위 비교</h2>
                     <div class="font-size-input-wrapper">
-                        <label for="font-size-input">기준 Font size</label>
+                        <label for="font-size-input">Font size</label>
                         <input type="number" id="font-size-input" value="16">
-                        <span>px</span>
-                        <div style="margin-left: 20px;">
-                            <label for="font-base-size-input">rem 기준 (px)</label>
-                            <input type="number" id="font-base-size-input" value="16" min="10" max="30">
-                        </div>
-                    </div>
-                    <div class="font-unit-description">
-                        <p><strong>💡 초보자 가이드:</strong> 웹에서 `rem`은 사용자의 브라우저 기본 글꼴 설정을 따르므로 접근성에 유리합니다. `pt`는 iOS, `sp`는 Android에서 사용되며 각 플랫폼의 고유한 화면 밀도와 사용자 설정에 맞춰 조정됩니다.</p>
+                        <span>px (기준)</span>
                     </div>
                     <div class="font-unit-cards">
-                        <div class="font-unit-card"><h4>pt (for iOS)</h4><p class="font-example" id="pt-example">12.0pt</p></div>
-                        <div class="font-unit-card"><h4>rem (for Web)</h4><p class="font-example" id="rem-example">1.00rem</p></div>
-                        <div class="font-unit-card"><h4>sp (for Android)</h4><p class="font-example" id="sp-example">16sp</p></div>
+                        <div class="font-unit-card"><h4>pt (for iOS)</h4><p class="font-example" id="pt-example">고정 크기 텍스트 예시</p></div>
+                        <div class="font-unit-card"><h4>rem (for Web)</h4><p class="font-example" id="rem-example">고정 크기 텍스트 예시</p></div>
+                        <div class="font-unit-card"><h4>sp (for Android)</h4><p class="font-example" id="sp-example">고정 크기 텍스트 예시</p></div>
+                    </div>
+                    <div class="font-unit-guide">
+                        <p><strong>pt:</strong> 인쇄물의 '포인트' 단위로, 주로 iOS/macOS에서 고정 크기를 위해 사용됩니다.</p>
+                        <p><strong>rem:</strong> 웹 접근성에 중요하며, 사용자가 브라우저에서 설정한 기본 글자 크기에 따라 유연하게 변합니다.</p>
+                        <p><strong>sp:</strong> 안드로이드에서 사용되며, 사용자의 시스템 글자 크기 설정에 따라 조절됩니다.</p>
                     </div>
                 </div>
 
@@ -203,20 +202,23 @@
                     <h2 class="section-header-lab">색약자를 위한 유니버설 컬러 시스템</h2>
                     <div class="simulator-display">
                         <div class="simulator-card">
-                            <div class="simulator-title">일반 시각</div> <div class="color-palette-sim">
+                            <div class="simulator-title"><span>🎨</span> 일반 시각</div>
+                            <div class="color-palette-sim">
                                 <div class="palette-item" id="origBg"><span class="palette-label">배경</span><span class="hex-code-sim"></span></div>
                                 <div class="palette-item" id="origText"><span class="palette-label">텍스트</span><span class="hex-code-sim"></span></div>
                             </div>
                         </div>
                         <div class="simulator-card">
-                            <div class="simulator-title">적록색약 시각</div> <div class="color-palette-sim">
+                            <div class="simulator-title"><span>🔄</span> 적록색약 시각</div>
+                            <div class="color-palette-sim">
                                 <div class="palette-item" id="simBg"><span class="palette-label">배경</span><span class="hex-code-sim"></span></div>
                                 <div class="palette-item" id="simText"><span class="palette-label">텍스트</span><span class="hex-code-sim"></span></div>
                             </div>
                         </div>
                     </div>
                     <div class="solutions-section">
-                        <div class="solution-header ai-solution-header">AI 접근성 솔루션</div> <div id="solution-text"></div>
+                        <div class="solution-header">AI 접근성 솔루션</div>
+                        <div id="solution-text"></div>
                     </div>
                 </div>
             </div>
