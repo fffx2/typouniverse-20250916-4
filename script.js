@@ -9,6 +9,7 @@ let appState = {
     generatedResult: null
 };
 let knowledgeBase = {};
+let typingTimeout; // 타이핑 효과를 위한 전역 변수
 
 document.addEventListener('DOMContentLoaded', initializeApp);
 
@@ -90,7 +91,10 @@ function populateDropdown(type, options) {
 }
 
 function toggleDropdown(type) {
-    document.getElementById(`${type}-menu`).classList.toggle('show');
+    const menu = document.getElementById(`${type}-menu`);
+    const otherMenuType = type === 'service' ? 'platform' : 'service';
+    document.getElementById(`${otherMenuType}-menu`).classList.remove('show');
+    menu.classList.toggle('show');
 }
 
 function selectOption(type, value) {
@@ -101,6 +105,7 @@ function selectOption(type, value) {
 
     if (appState.service && appState.platform) {
         document.getElementById('step02').classList.remove('hidden');
+        updateAIMessage("훌륭해요! 이제 서비스의 핵심 분위기를 정해볼까요? 두 개의 슬라이더를 조절하여 원하는 무드를 찾아주세요.");
     }
 }
 
@@ -129,17 +134,18 @@ function renderKeywords() {
                    (soft >= 60 && staticMood < 40) ? 'group3' :
                    (soft >= 60 && staticMood >= 60) ? 'group4' : 'group5';
     
-    const { keywords } = knowledgeBase.iri_colors[groupKey];
+    const { keywords, description } = knowledgeBase.iri_colors[groupKey];
     const keywordContainer = document.getElementById('keyword-tags');
     keywordContainer.innerHTML = '';
     
     keywords.forEach(keyword => {
         const tag = document.createElement('div');
-        tag.className = 'tag tag-light';
+        tag.className = 'tag';
         tag.textContent = keyword;
         tag.onclick = () => selectKeyword(keyword, groupKey);
         keywordContainer.appendChild(tag);
     });
+    updateAIMessage(`'${description}' 분위기를 선택하셨군요. 이와 관련된 키워드들을 제안합니다.`);
 }
 
 function selectKeyword(keyword, groupKey) {
@@ -147,7 +153,6 @@ function selectKeyword(keyword, groupKey) {
     
     document.querySelectorAll('#keyword-tags .tag').forEach(tag => {
         tag.classList.toggle('selected', tag.textContent === keyword);
-        tag.classList.toggle('tag-purple', tag.textContent === keyword);
     });
 
     const { key_colors } = knowledgeBase.iri_colors[groupKey];
@@ -162,6 +167,7 @@ function selectKeyword(keyword, groupKey) {
         colorContainer.appendChild(swatch);
     });
     document.getElementById('color-selection-wrapper').style.display = 'block';
+    updateAIMessage(`'${keyword}' 키워드에 어울리는 대표 색상들입니다. 마음에 드는 주조 색상을 선택해주세요.`);
 }
 
 function selectColor(color) {
@@ -170,21 +176,65 @@ function selectColor(color) {
         swatch.classList.toggle('selected', swatch.style.backgroundColor === color);
     });
     document.getElementById('generate-btn').classList.remove('hidden');
+    updateAIMessage("좋습니다! 이제 버튼을 눌러 AI 디자인 가이드를 생성하세요.");
 }
 
-// Simplified function, as the AI part is now handled by the backend.
-function generateGuide() {
-    // This is a placeholder for where you might call the backend
-    // For now, it will just display some mock data for demonstration
-    const mockData = {
+async function generateGuide() {
+    const btn = document.getElementById('generate-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading"></span> AI 가이드 생성 중...';
+
+    try {
+        const response = await fetch('/.netlify/functions/generate-guide', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                context: appState,
+                knowledgeBase: knowledgeBase
+            })
+        });
+
+        if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
+        
+        const data = await response.json();
+        displayGeneratedGuide(data);
+
+    } catch (error) {
+        console.error('Error fetching AI guide:', error);
+        const localData = generateLocalReport();
+        displayGeneratedGuide(localData);
+        updateAIMessage("⚠️ AI 서버 연결에 실패하여 기본 가이드를 생성했습니다.");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'AI 가이드 생성하기';
+        btn.classList.add('hidden');
+    }
+}
+
+function generateLocalReport() {
+    const primary = appState.primaryColor;
+    const primaryLight = lightenColor(primary, 20);
+    const primaryDark = darkenColor(primary, 20);
+    const secondary = getComplementaryColor(primary);
+    const secondaryLight = lightenColor(secondary, 20);
+    const secondaryDark = darkenColor(secondary, 20);
+    const platformGuide = knowledgeBase.guidelines[appState.platform.toLowerCase()] || knowledgeBase.guidelines.web;
+
+    return {
         colorSystem: {
-            primary: { main: '#663399', light: '#9a66cc', dark: '#402060' },
-            secondary: { main: '#99cc33', light: '#c2e078', dark: '#6b8f23' }
+            primary: { main: primary, light: primaryLight, dark: primaryDark },
+            secondary: { main: secondary, light: secondaryLight, dark: secondaryDark }
         },
-        typography: { bodySize: '16px', headlineSize: '24px', lineHeight: '1.5' },
-        accessibility: { textColorOnPrimary: '#FFFFFF', contrastRatio: '7.5:1' }
+        typography: {
+            bodySize: platformGuide.typeScale.body,
+            headlineSize: platformGuide.typeScale.largeTitle || platformGuide.typeScale.headline,
+            lineHeight: platformGuide.lineHeight
+        },
+        accessibility: {
+            textColorOnPrimary: getContrastingTextColor(primary),
+            contrastRatio: calculateContrast(primary, getContrastingTextColor(primary)).toFixed(2) + ':1'
+        }
     };
-    displayGeneratedGuide(mockData);
 }
 
 function displayGeneratedGuide(data) {
@@ -193,17 +243,22 @@ function displayGeneratedGuide(data) {
         textColor: data.accessibility.textColorOnPrimary
     };
 
-    // Populate color boxes
     for (const type of ['primary', 'secondary']) {
         for (const shade of ['main', 'light', 'dark']) {
             const element = document.getElementById(`${type}-${shade}`);
             const color = data.colorSystem[type][shade];
             element.style.background = color;
             element.querySelector('.color-code').textContent = color;
+            element.style.color = getContrastingTextColor(color);
         }
     }
+
+    document.getElementById('contrast-description').innerHTML = `Primary 색상 배경 사용 시, 권장 텍스트 색상은 <strong>${data.accessibility.textColorOnPrimary}</strong>이며, 대비는 <strong>${data.accessibility.contrastRatio}</strong>입니다.`;
+    document.getElementById('font-size-description').innerHTML = `<strong>${data.typography.bodySize}</strong> (Body) / <strong>${data.typography.headlineSize}</strong> (Headline)`;
+
     document.getElementById('ai-report').style.display = 'block';
     document.getElementById('guidelines').style.display = 'grid';
+    updateAIMessage(`${appState.platform} 플랫폼에 최적화된 디자인 가이드가 생성되었습니다!`);
 }
 
 // ===================================================================================
@@ -219,7 +274,6 @@ function initializeLabPage() {
 }
 
 function updateLab() {
-    // Contrast Test
     const bgColor = document.getElementById('bg-color-input').value;
     const textColor = document.getElementById('text-color-input').value;
     const lineHeight = document.getElementById('line-height-input').value;
@@ -230,8 +284,17 @@ function updateLab() {
     const ratio = calculateContrast(bgColor, textColor);
     document.getElementById('contrast-ratio').textContent = ratio.toFixed(2) + ' : 1';
     
-    document.getElementById('aa-status').classList.toggle('pass', ratio >= 4.5);
-    document.getElementById('aaa-status').classList.toggle('pass', ratio >= 7);
+    const aaPass = ratio >= 4.5;
+    const aaaPass = ratio >= 7;
+
+    document.getElementById('aa-status').classList.toggle('pass', aaPass);
+    document.getElementById('aa-status').classList.toggle('fail', !aaPass);
+    document.getElementById('aaa-status').classList.toggle('pass', aaaPass);
+    document.getElementById('aaa-status').classList.toggle('fail', !aaaPass);
+
+    const infoEl = document.getElementById('contrast-info');
+    infoEl.classList.toggle('pass', aaPass);
+    infoEl.classList.toggle('fail', !aaPass);
     
     const preview = document.getElementById('text-preview');
     preview.style.backgroundColor = bgColor;
@@ -239,46 +302,38 @@ function updateLab() {
     preview.style.lineHeight = lineHeight;
     document.getElementById('line-height-value').textContent = lineHeight;
 
-    // Font Units
     const fontSize = document.getElementById('font-size-input').value || 16;
     document.getElementById('pt-example').textContent = (fontSize * 0.75).toFixed(1) + 'pt';
     document.getElementById('rem-example').textContent = (fontSize / 16).toFixed(2) + 'rem';
     document.getElementById('sp-example').textContent = fontSize + 'sp';
 
-    // Colorblind Simulator
     updateSimulator(bgColor, textColor);
 }
 
 function updateSimulator(bgColor, textColor) {
-    const simBg = daltonizeColor(bgColor, 'Protanopia');
-    const simText = daltonizeColor(textColor, 'Protanopia');
+    const simBg = daltonizeColor(bgColor);
+    const simText = daltonizeColor(textColor);
 
-    const origBgEl = document.getElementById('origBg');
-    const origTextEl = document.getElementById('origText');
-    const simBgEl = document.getElementById('simBg');
-    const simTextEl = document.getElementById('simText');
-
-    updatePaletteItem(origBgEl, bgColor);
-    updatePaletteItem(origTextEl, textColor);
-    updatePaletteItem(simBgEl, simBg);
-    updatePaletteItem(simTextEl, simText);
+    updatePaletteItem(document.getElementById('origBg'), bgColor);
+    updatePaletteItem(document.getElementById('origText'), textColor);
+    updatePaletteItem(document.getElementById('simBg'), simBg);
+    updatePaletteItem(document.getElementById('simText'), simText);
 
     const simRatio = calculateContrast(simBg, simText);
     const solutionText = document.getElementById('solution-text');
     if (simRatio >= 4.5) {
-        solutionText.innerHTML = `✅ 양호: 시뮬레이션 결과, 대비율이 ${simRatio.toFixed(2)}:1로 충분하여 색상 구분에 문제가 없을 것으로 보입니다.`;
-        solutionText.style.color = 'green';
+        solutionText.innerHTML = `✅ **양호**: 시뮬레이션 결과, 대비율이 <strong>${simRatio.toFixed(2)}:1</strong>로 충분하여 색상 구분에 문제가 없을 것으로 보입니다.`;
+        solutionText.style.color = '#2e7d32';
     } else {
-        solutionText.innerHTML = `⚠️ 주의: 시뮬레이션 결과, 대비율이 ${simRatio.toFixed(2)}:1로 낮아 색상 구분이 어려울 수 있습니다. 명도 차이를 더 확보하거나, 색상 외 다른 시각적 단서(아이콘, 굵기 등)를 함께 사용하는 것을 권장합니다.`;
-        solutionText.style.color = 'orange';
+        solutionText.innerHTML = `⚠️ **주의**: 시뮬레이션 결과, 대비율이 <strong>${simRatio.toFixed(2)}:1</strong>로 낮아 색상 구분이 어려울 수 있습니다. 명도 차이를 더 확보하거나, 색상 외 다른 시각적 단서(아이콘, 굵기 등)를 함께 사용하는 것을 권장합니다.`;
+        solutionText.style.color = '#d32f2f';
     }
 }
 
 function updatePaletteItem(element, color) {
     element.style.background = color;
     element.querySelector('.hex-code-sim').textContent = color;
-    const contrastColor = getContrastingTextColor(color);
-    element.style.color = contrastColor;
+    element.style.color = getContrastingTextColor(color);
 }
 
 function updateLabPageWithData(bgColor, textColor) {
@@ -287,13 +342,34 @@ function updateLabPageWithData(bgColor, textColor) {
     updateLab();
 }
 
+function updateAIMessage(message) {
+    const el = document.getElementById('ai-message');
+    clearTimeout(typingTimeout);
+    let i = 0;
+    el.innerHTML = '';
+    function typeWriter() {
+        if (i < message.length) {
+            if (el.querySelector('.typing-cursor')) {
+                el.querySelector('.typing-cursor').remove();
+            }
+            el.innerHTML = message.substring(0, i + 1) + '<span class="typing-cursor">|</span>';
+            i++;
+            typingTimeout = setTimeout(typeWriter, 25);
+        } else {
+            if (el.querySelector('.typing-cursor')) {
+                el.querySelector('.typing-cursor').remove();
+            }
+        }
+    }
+    typeWriter();
+}
 
 // ===================================================================================
-// HELPER FUNCTIONS (Color, etc.)
+// HELPER FUNCTIONS
 // ===================================================================================
-// [요청 4] 추가된 헬퍼 함수
+
 function getContrastingTextColor(hex) {
-    if (!hex) return '#000000';
+    if (!hex || hex.length < 4) return '#000000';
     const rgb = hexToRgb(hex);
     if (!rgb) return '#000000';
     const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
@@ -303,9 +379,7 @@ function getContrastingTextColor(hex) {
 function calculateContrast(hex1, hex2) {
     const lum1 = getLuminance(hex1);
     const lum2 = getLuminance(hex2);
-    const brightest = Math.max(lum1, lum2);
-    const darkest = Math.min(lum1, lum2);
-    return (brightest + 0.05) / (darkest + 0.05);
+    return (Math.max(lum1, lum2) + 0.05) / (Math.min(lum1, lum2) + 0.05);
 }
 
 function getLuminance(hex) {
@@ -319,24 +393,79 @@ function getLuminance(hex) {
 }
 
 function hexToRgb(hex) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+    hex = hex.replace(/^#/, '');
+    if (hex.length === 3) {
+        hex = hex.split('').map(c => c + c).join('');
+    }
+    const bigint = parseInt(hex, 16);
+    if (isNaN(bigint)) return null;
+    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
 }
 
-// Colorblind simulation (Simplified Daltonize function)
-function daltonizeColor(hex, type) {
+function daltonizeColor(hex) {
     const rgb = hexToRgb(hex);
     if (!rgb) return '#000000';
-    // This is a simplified simulation for red-green color blindness
-    const r = rgb.r * 0.56667 + rgb.g * 0.43333 + rgb.b * 0;
-    const g = rgb.r * 0.55833 + rgb.g * 0.44167 + rgb.b * 0;
-    const b = rgb.r * 0 + rgb.g * 0.24167 + rgb.b * 0.75833;
-    const toHex = c => ('0' + Math.round(c).toString(16)).slice(-2);
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    const r = rgb.r, g = rgb.g, b = rgb.b;
+    const simR = 0.567 * r + 0.433 * g;
+    const simG = 0.558 * r + 0.442 * g;
+    const simB = 0.242 * g + 0.758 * b;
+    const toHex = c => ('0' + Math.round(Math.min(255, c)).toString(16)).slice(-2);
+    return `#${toHex(simR)}${toHex(simG)}${toHex(simB)}`;
 }
 
-// AI Message (Placeholder, as there's no typing effect in this version)
-function updateAIMessage(message) {
-    const el = document.getElementById('ai-message');
-    if (el) el.textContent = message;
+function lightenColor(color, percent) {
+    const num = parseInt(color.slice(1), 16),
+    amt = Math.round(2.55 * percent),
+    R = (num >> 16) + amt,
+    G = (num >> 8 & 0x00FF) + amt,
+    B = (num & 0x0000FF) + amt;
+    return "#" + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (G<255?G<1?0:G:255)*0x100 + (B<255?B<1?0:B:255)).toString(16).slice(1);
+}
+
+function darkenColor(color, percent) {
+    const num = parseInt(color.slice(1), 16),
+    amt = Math.round(2.55 * percent),
+    R = (num >> 16) - amt,
+    G = (num >> 8 & 0x00FF) - amt,
+    B = (num & 0x0000FF) - amt;
+    return "#" + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (G<255?G<1?0:G:255)*0x100 + (B<255?B<1?0:B:255)).toString(16).slice(1);
+}
+
+function getComplementaryColor(hex){
+    const rgb = hexToRgb(hex);
+    if (!rgb) return '#000000';
+    let r = rgb.r / 255, g = rgb.g / 255, b = rgb.b / 255;
+    let max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h, s, l = (max + min) / 2;
+    if (max == min) { h = s = 0; }
+    else {
+        let d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+    }
+    h = (h + 0.5) % 1;
+    let r1, g1, b1;
+    if (s == 0) { r1 = g1 = b1 = l; }
+    else {
+        const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+        }
+        let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        let p = 2 * l - q;
+        r1 = hue2rgb(p, q, h + 1/3);
+        g1 = hue2rgb(p, q, h);
+        b1 = hue2rgb(p, q, h - 1/3);
+    }
+    const toHex = x => ('0' + Math.round(x * 255).toString(16)).slice(-2);
+    return `#${toHex(r1)}${toHex(g1)}${toHex(b1)}`;
 }
